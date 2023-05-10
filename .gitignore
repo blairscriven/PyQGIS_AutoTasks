@@ -1,0 +1,9 @@
+# ignore the environment file
+.env
+
+# ignore entire folder
+/inputfolder
+
+# ignore all python files except PyQGIS_AutoTasks_BoilerPlate.py
+*.py
+!PyQGIS_AutoTasks_BoilerPlate.py
