@@ -1,4 +1,4 @@
-import os, logging, time, glob
+import os, logging, time, glob, pandas as pd
 from qgis.core import QgsVectorLayer, QgsField, QgsExpression, QgsExpressionContextUtils, QgsExpressionContext
 from PyQt5.QtCore import QVariant
 
@@ -22,6 +22,33 @@ def change_filenames():
 	for file_name in glob.glob("*.gpkg"):
 		new_filename = file_name[:-13] + "03262050.gpkg"
 		os.rename(file_name, new_filename)
+
+def del_nulls(file, logger):
+	Vector_data = QgsVectorLayer(file, "", "ogr")
+	logger.info('File: %s', file)
+	int_feilds = Vector_data.fields() # Identify attribute fields
+	field_names = int_feilds.names() # list of field names
+
+	 # Example of a list Comprehension; find each feature (row in table) and find its value for each column; outputs a generator
+	datagen = ([f[col] for col in field_names] for f in Vector_data.getFeatures())
+
+	# Following code block will convert attribute data into pandas dataframe, then the Null fields will be identified
+	df = pd.DataFrame.from_records(data=datagen, columns=field_names)
+	#df = df.replace('NULL', np.nan, regex=True)
+	df.to_csv("temp.csv")
+	df1 = pd.read_csv("temp.csv", na_values= "NULL")
+	Null_list = df1.columns[df1.isna().all()].tolist()
+	os.remove('temp.csv')
+	del_index = []
+	
+	for field in Null_list:
+		del_index.append(int_feilds.indexFromName(field)) # create a list of attribute feild indices
+
+	data_provider = Vector_data.dataProvider() # access the real datasource behind your layer
+	data_provider.deleteAttributes(del_index)
+	Vector_data.commitChanges()
+
+	logger.info('Deleted the NULL-fields(%s) from the %s file', str(Null_list), file)
 
 def delete_fields(file, fields, logger):
 	Vector_data = QgsVectorLayer(file, "", "ogr")
@@ -106,9 +133,10 @@ def run(
 
 	for file in FILES_LIST:
 		#delete_fields(file, delete_fields_list, logger)
-		add_fields(file, logger) # go to class to define new field names and QVarient types (e.g. Int)
-		update_field(file, update_field_name, update_field_expression, logger)
-		QGIS_geoprocessing(file, logger) # go to class to define the geoprocessing procedure you want
+		del_nulls(file, logger)
+		#add_fields(file, logger) # go to class to define new field names and QVarient types (e.g. Int)
+		#update_field(file, update_field_name, update_field_expression, logger)
+		#QGIS_geoprocessing(file, logger) # go to class to define the geoprocessing procedure you want
 
 	# End the timer
 	time_took = time.time() - start_time
