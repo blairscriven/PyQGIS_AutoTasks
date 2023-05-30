@@ -50,6 +50,41 @@ def del_nulls(file, logger):
 
 	logger.info('Deleted the NULL-fields(%s) from the %s file', str(Null_list), file)
 
+def del_dupes(file, logger):
+	Vector_data = QgsVectorLayer(file, "", "ogr")
+	int_feilds = Vector_data.fields() # Identify attribute fields
+	field_names = int_feilds.names() # list of field names
+
+	 # Example of a list Comprehension; find each feature (row in table) and find its value for each column; outputs a generator
+	datagen = ([f[col] for col in field_names] for f in Vector_data.getFeatures())
+
+	# Following code block will convert attribute data into pandas dataframe, then the Null fields will be identified
+	df = pd.DataFrame.from_records(data=datagen, columns=field_names)
+	
+	'''
+		Below code comes from user ankthon on geeksforgeeks
+		- "How to Find & Drop duplicate columns in a Pandas DataFrame?"
+		The code will create a list of fields that are dupilcates of other fields
+	'''
+	duplicateColumnNames = set()
+	for x in range(df.shape[1]):
+		col = df.iloc[:, x]
+		for y in range(x + 1, df.shape[1]):
+			otherCol = df.iloc[:, y]
+			if col.equals(otherCol):
+				duplicateColumnNames.add(df.columns.values[y])
+	duplicateCol_Names = list(duplicateColumnNames)
+
+	del_index = []
+	for field in duplicateCol_Names:
+		del_index.append(int_feilds.indexFromName(field)) # create a list of attribute feild indices
+
+	data_provider = Vector_data.dataProvider() # access the real datasource behind your layer
+	data_provider.deleteAttributes(del_index)
+	Vector_data.commitChanges()
+
+	logger.info('Deleted the NULL-fields(%s) from the %s file', str(duplicateCol_Names), file)
+
 def delete_fields(file, fields, logger):
 	Vector_data = QgsVectorLayer(file, "", "ogr")
 	tmp_feilds = Vector_data.fields() # Identify attribute fields
@@ -134,6 +169,7 @@ def run(
 	for file in FILES_LIST:
 		#delete_fields(file, delete_fields_list, logger)
 		del_nulls(file, logger)
+		del_dupes(file, logger)
 		#add_fields(file, logger) # go to class to define new field names and QVarient types (e.g. Int)
 		#update_field(file, update_field_name, update_field_expression, logger)
 		#QGIS_geoprocessing(file, logger) # go to class to define the geoprocessing procedure you want
